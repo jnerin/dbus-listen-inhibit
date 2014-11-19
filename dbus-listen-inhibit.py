@@ -23,6 +23,9 @@ def exit_gracefully(signum, frame):
     print("Ctrl-C received, cleanning up.")
     mainloop.quit()
 
+def timestamp(timestamp):
+    return datetime.datetime.fromtimestamp((timestamp)).strftime('%Y-%m-%d %H:%M:%S')
+
 def proccess_signals (queue):
     global inhibits_list
     queueLock.acquire()
@@ -30,37 +33,43 @@ def proccess_signals (queue):
         data = dict(queue.get())
         queueLock.release()
         if data['member'] == "Inhibit":
-            print ""
+            #print ""
             pid = dbus.Interface(bus.get_object('org.freedesktop.DBus', '/org/freedesktop/DBus'), 'org.freedesktop.DBus').GetConnectionUnixProcessID(data['sender'])
-            inhibits_list[data['sender']] = datetime.datetime.fromtimestamp(data['timestamp']).strftime('%Y-%m-%d %H:%M:%S') + " App = " + data['arg_0'] + " (pid: " + str(pid) + "), Reason = " + data['arg_1']
+            inhibits_list[data['sender']] = timestamp(data['timestamp']) + " App = " + data['arg_0'] + " (pid: " + str(pid) + "), Reason = " + data['arg_1']
         elif data['member'] == "UnInhibit":
-            print ""
+            #print ""
             if data['sender'] in inhibits_list:
+                print " " + timestamp(time.time()) + " finished: " + inhibits_list[data['sender']]
                 del inhibits_list[data['sender']]
-            #else:
-                #print data['sender'], "wasn't registered"
+            else:
+                # Inhibit existed before we started
+                print timestamp(time.time()) + " " + data['sender'] + " wasn't registered"
         elif data['member'] == "HasInhibitChanged":
             if data['arg_0'] == True:
                 # something Inhibits
-                print "Power management inhibited"
+                print timestamp(time.time()) + " Power management inhibited"
             elif data['arg_0'] == False:
                 # Nothing inhibits sleep
-                print "Sleep possible"
+                print timestamp(time.time()) + " Sleep possible"
                 # There are cases that the proccess inhibitting sleep dies 
                 # without notifying it, so we don't receive an UnInhibit 
                 # but dbus keeps track of the callers, and if they die it 
                 # releases the pending inhibits.
+                # Sadly if there are several pending inhibits we won't know
+                # until HasInhibitChanged notifies us that there are 0 pending.
                 # So at this point nothing is active and we should clear the list
                 inhibits_list={}
 
     else:
         queueLock.release()
-    if len(inhibits_list) > 0:
-        print "Active Inhibits:"
-        for value in sorted(inhibits_list.values()):
-            print str(value)
+    if len(inhibits_list) > 0: # If we have pending inhibits show them
+        print " Active Inhibits:"
+        for value in sorted(inhibits_list.values(), reverse=True):
+            print " " + str(value)
+        #print ""
+
     return False # So we are not scheduled to run again, 
-                 # it'll be notification who'll reschedule us again
+                 # it'll be notifications() who'll reschedule us again
 
 
 
@@ -88,6 +97,13 @@ DBusGMainLoop(set_as_default=True)
 bus = dbus.SessionBus()
 bus.add_match_string_non_blocking("eavesdrop=true, path='/org/freedesktop/PowerManagement/Inhibit', interface='org.freedesktop.PowerManagement.Inhibit'")
 bus.add_message_filter(notifications)
+
+status = bus.get_object("org.freedesktop.PowerManagement", "/org/freedesktop/PowerManagement/Inhibit").HasInhibit()
+
+if status:
+    print timestamp(time.time()) + " Power management inhibited since unknown"
+else:
+    print timestamp(time.time()) + " Sleep possible since unknown"
 
 mainloop = glib.MainLoop()
 
