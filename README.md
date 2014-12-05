@@ -40,7 +40,16 @@ $ qdbus org.freedesktop.PowerManagement /org/freedesktop/PowerManagement/Inhibit
 false
 ```
 
+And a green light:
+
+![Sleep possible](sleep possible.png)
+
 The script will dump the active list of pending inhibits whenever there is a change on it, and also inform if sleep is possible or is inhibited.
+
+It will signal that sleep is inhibitted by using a red light when sleep is inhibitted and sending a notify to the desktop whenever an application adds itself to inhibit or removes itself:
+![inhibit started](inhibit started.png)
+
+![inhibit finished](inhibit finished.png)
 
 ```
 $ python dbus-listen-inhibit.py 
@@ -61,6 +70,12 @@ Active Inhibits:
 Sleep possible
 
 ```
+
+You can use the rigth click button over the green|red ligth to see the about window, exit the tool, and to see the current tracked pending inhibits with "Show status":
+
+![menu](menu.png)
+
+![inhibit dump](inhibit dump.png)
 
 You want a way to see the raw messages?
 - `dbus-monitor --session interface=org.freedesktop.PowerManagement.Inhibit`.
