@@ -13,6 +13,14 @@ import time
 import datetime
 import signal, sys
 
+
+import gtk
+import pynotify
+
+
+PROGRAM = "dbus-listen-inhibit"
+VERSION = "0.2"
+
 inhibits_list = {}
 
 def exit_gracefully(signum, frame):
@@ -28,6 +36,7 @@ def timestamp(timestamp):
 
 def proccess_signals (queue):
     global inhibits_list
+    
     queueLock.acquire()
     if not queue.empty():
         data = dict(queue.get())
@@ -36,21 +45,27 @@ def proccess_signals (queue):
             #print ""
             pid = dbus.Interface(bus.get_object('org.freedesktop.DBus', '/org/freedesktop/DBus'), 'org.freedesktop.DBus').GetConnectionUnixProcessID(data['sender'])
             inhibits_list[data['sender']] = timestamp(data['timestamp']) + " App = " + data['arg_0'] + " (pid: " + str(pid) + "), Reason = " + data['arg_1']
+            desktop_notify("Inhibit started", inhibits_list[data['sender']])
         elif data['member'] == "UnInhibit":
             #print ""
             if data['sender'] in inhibits_list:
                 print " " + timestamp(time.time()) + " finished: " + inhibits_list[data['sender']]
+                desktop_notify("inhibit finished", inhibits_list[data['sender']])
                 del inhibits_list[data['sender']]
             else:
                 # Inhibit existed before we started
                 print timestamp(time.time()) + " " + data['sender'] + " wasn't registered"
+                desktop_notify("inhibit finished", data['sender'] + " wasn't registered")
         elif data['member'] == "HasInhibitChanged":
             if data['arg_0'] == True:
                 # something Inhibits
                 print timestamp(time.time()) + " Power management inhibited"
+                SystrayIconApp.sleep_inhibitted(systray)
+                
             elif data['arg_0'] == False:
                 # Nothing inhibits sleep
                 print timestamp(time.time()) + " Sleep possible"
+                SystrayIconApp.sleep_possible(systray)
                 # There are cases that the proccess inhibitting sleep dies 
                 # without notifying it, so we don't receive an UnInhibit 
                 # but dbus keeps track of the callers, and if they die it 
@@ -62,14 +77,21 @@ def proccess_signals (queue):
 
     else:
         queueLock.release()
-    if len(inhibits_list) > 0: # If we have pending inhibits show them
-        print " Active Inhibits:"
-        for value in sorted(inhibits_list.values(), reverse=True):
-            print " " + str(value)
-        #print ""
+
+    dump_inhibits_text()
 
     return False # So we are not scheduled to run again, 
                  # it'll be notifications() who'll reschedule us again
+
+def dump_inhibits_text():
+    text=""
+    if len(inhibits_list) > 0: # If we have pending inhibits show them
+        print " Active Inhibits:"
+        text = " Active Inhibits:\n"
+        for value in sorted(inhibits_list.values(), reverse=True):
+            print " " + str(value)
+            text = text + " " + str(value) + "\n"
+    return text
 
 
 
@@ -85,28 +107,187 @@ def notifications(bus, message):
         glib.idle_add(proccess_signals, workQueue) # schedule a call to proccess it when idle
 
 
-# store the original SIGINT handler
-original_sigint = signal.getsignal(signal.SIGINT)
-signal.signal(signal.SIGINT, exit_gracefully)
+def desktop_notify(title, text):
+    n = pynotify.Notification (title, text)
+    n.show ()
 
-queueLock = threading.Lock()
-workQueue = Queue.Queue(10)
 
-DBusGMainLoop(set_as_default=True)
+class SystrayIconApp:
+    def __init__(self):
+        self.icon = gtk.status_icon_new_from_stock(gtk.STOCK_ABOUT)
+        # gtk.STOCK_YES gtk.STOCK_NO  
+        self.icon.connect('popup-menu', self.on_right_click)
+        self.icon.connect('activate', self.on_left_click)
+        self.icon.set_tooltip((PROGRAM))
 
-bus = dbus.SessionBus()
-bus.add_match_string_non_blocking("eavesdrop=true, path='/org/freedesktop/PowerManagement/Inhibit', interface='org.freedesktop.PowerManagement.Inhibit'")
-bus.add_message_filter(notifications)
 
-status = bus.get_object("org.freedesktop.PowerManagement", "/org/freedesktop/PowerManagement/Inhibit").HasInhibit()
+    def message(self, data=None):
+      "Function to display messages to the user."
+      
+      msg=gtk.MessageDialog(None, gtk.DIALOG_MODAL,
+        gtk.MESSAGE_INFO, gtk.BUTTONS_OK, data)
+      msg.run()
+      msg.destroy()
+     
+    def sleep_possible(self):
+      self.icon.set_from_stock(gtk.STOCK_YES)
+      self.icon.set_tooltip(('Sleep possible'))
 
-if status:
-    print timestamp(time.time()) + " Power management inhibited since unknown"
-else:
-    print timestamp(time.time()) + " Sleep possible since unknown"
+    def sleep_inhibitted(self):
+      self.icon.set_from_stock(gtk.STOCK_NO)
+      self.icon.set_tooltip(('Power management inhibited'))
+        
+    def show_app(self, data=None):
+        #self.message(data)
+        TextView()
 
-mainloop = glib.MainLoop()
+      #icon.set_from_gicon(gtk.status_icon_new_from_stock(gtk.STOCK_YES))
+      #gtk.StatusIcon.set_from_stock(gtk.STOCK_YES)
+      #gtk.StatusIcon.set_from_stock(gtk.status_icon_new_from_stock(gtk.STOCK_YES))
+     
+    def close_app(self, data=None):
+      self.message(data)
+      gtk.main_quit()
+     
+    def make_menu(self, event_button, event_time, data=None):
+      menu = gtk.Menu()
+      show_item = gtk.MenuItem("Show status")
+      close_item = gtk.MenuItem("Close App")
+      about_item = gtk.MenuItem("About")
+      
+      #Append the menu items  
+      menu.append(show_item)
+      menu.append(close_item)
+      menu.append(about_item)
+      #add callbacks
+      show_item.connect_object("activate", self.show_app, "Show status")
+      close_item.connect_object("activate", self.close_app, "Close App")
+      about_item.connect_object("activate", self.show_about_dialog, "About")
+      #Show the menu items
+      show_item.show()
+      close_item.show()
+      about_item.show()
+      
+      #Popup the menu
+      menu.popup(None, None, None, event_button, event_time)
+     
+    def on_right_click(self, data, event_button, event_time):
+      self.make_menu(event_button, event_time)
+      #self.icon.set_from_stock(gtk.STOCK_NO)
+     
+    def on_left_click(self, event):
+      self.message("Status Icon Left Clicked")
+      #self.icon.set_from_stock(gtk.STOCK_YES)
+     
 
-mainloop.run()
+    def  show_about_dialog(self, data=None):
+        about_dialog = gtk.AboutDialog()
+        about_dialog.set_destroy_with_parent (True)
+        about_dialog.set_icon_name (PROGRAM)
+        about_dialog.set_name(PROGRAM)
+        about_dialog.set_version(VERSION)
+        about_dialog.set_copyright("(C) 2014 Jorge Nerín")
+        about_dialog.set_comments(("Program to listen for dbus power management inhibit related messages to help debugging sleep problems, comes with a system tray icon"))
+        about_dialog.set_authors(['Jorge Nerín <jnerin@gmail.com>'])
+        about_dialog.run()
+        about_dialog.destroy()
 
-print "Exiting"
+
+
+
+class TextView:
+    def close(self, widget):
+        #gtk.main_quit()
+        self.window.destroy()
+
+    def close_application(self, widget):
+        self.window.destroy()
+
+    def set_text(text):
+        self.textbuffer.set_text(text)
+
+    def __init__(self):
+        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window.set_resizable(True)  
+        self.window.connect("destroy", self.close_application)
+        self.window.set_title("Inhibit dump")
+        self.window.set_border_width(0)
+        self.window.set_default_size(500, 200)
+
+        box1 = gtk.VBox(False, 0)
+        self.window.add(box1)
+        box1.show()
+
+        box2 = gtk.VBox(False, 10)
+        box2.set_border_width(10)
+        box1.pack_start(box2, True, True, 0)
+        box2.show()
+
+        sw = gtk.ScrolledWindow()
+        sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        textview = gtk.TextView()
+        self.textbuffer = textview.get_buffer()
+        sw.add(textview)
+        sw.show()
+        textview.set_editable(False)
+        textview.show()
+
+        box2.pack_start(sw)
+        self.textbuffer.set_text(dump_inhibits_text())
+
+        separator = gtk.HSeparator()
+        box1.pack_start(separator, False, True, 0)
+        separator.show()
+
+        box2 = gtk.VBox(False, 10)
+        box2.set_border_width(10)
+        box1.pack_start(box2, False, True, 0)
+        box2.show()
+
+        button = gtk.Button("close")
+        button.connect("clicked", self.close_application)
+        box2.pack_start(button, True, True, 0)
+        button.set_flags(gtk.CAN_DEFAULT)
+        button.grab_default()
+        button.show()
+        self.window.show()
+
+
+
+
+if __name__ == '__main__':
+
+    # store the original SIGINT handler
+    original_sigint = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, exit_gracefully)
+
+    systray = SystrayIconApp()    
+    #gtk.main()
+
+    if not pynotify.init (PROGRAM):
+        sys.exit (1)
+
+    queueLock = threading.Lock()
+    workQueue = Queue.Queue(10)
+
+    DBusGMainLoop(set_as_default=True)
+
+    bus = dbus.SessionBus()
+    bus.add_match_string_non_blocking("eavesdrop=true, path='/org/freedesktop/PowerManagement/Inhibit', interface='org.freedesktop.PowerManagement.Inhibit'")
+    bus.add_message_filter(notifications)
+
+    status = bus.get_object("org.freedesktop.PowerManagement", "/org/freedesktop/PowerManagement/Inhibit").HasInhibit()
+
+    if status:
+        print timestamp(time.time()) + " Power management inhibited since unknown"
+        SystrayIconApp.sleep_inhibitted(systray)
+    else:
+        print timestamp(time.time()) + " Sleep possible since unknown"
+        SystrayIconApp.sleep_possible(systray)
+
+    #mainloop = glib.MainLoop()
+    #mainloop.run()
+    
+    gtk.main()
+
+    print "Exiting"
