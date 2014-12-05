@@ -71,7 +71,7 @@ Sleep possible
 
 ```
 
-You can use the rigth click button over the green|red ligth to see the about window, exit the tool, and to see the current tracked pending inhibits with "Show status":
+You can use the right click button over the green|red light to see the about window, exit the tool, and to see the current tracked pending inhibits with "Show status":
 
 ![menu](menu.png)
 
