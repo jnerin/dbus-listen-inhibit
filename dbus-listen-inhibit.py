@@ -1,5 +1,23 @@
 #!/usr/bin/python
 # vim: set fileencoding=utf8 :
+#
+# Tool to check for dbus messages inhibiting sleep in power management. 
+# It does so by listening for messages in the session dbus 
+# inhibiting/uninhibiting power management, and the HasInhibitChanged message.
+# 
+# Copyright 2014 Jorge Nerín (jnerin@gmail.com)
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation version 2 of the License.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import glib
@@ -12,7 +30,6 @@ import Queue
 import time
 import datetime
 import signal, sys
-
 
 import gtk
 import pynotify
@@ -120,7 +137,6 @@ class SystrayIconApp:
         self.icon.connect('activate', self.on_left_click)
         self.icon.set_tooltip((PROGRAM))
 
-
     def message(self, data=None):
       "Function to display messages to the user."
       
@@ -138,15 +154,11 @@ class SystrayIconApp:
       self.icon.set_tooltip(('Power management inhibited'))
         
     def show_app(self, data=None):
-        #self.message(data)
-        TextView()
-
-      #icon.set_from_gicon(gtk.status_icon_new_from_stock(gtk.STOCK_YES))
-      #gtk.StatusIcon.set_from_stock(gtk.STOCK_YES)
-      #gtk.StatusIcon.set_from_stock(gtk.status_icon_new_from_stock(gtk.STOCK_YES))
+      #self.message(data)
+      TextView()
      
     def close_app(self, data=None):
-      self.message(data)
+      #self.message(data)
       gtk.main_quit()
      
     def make_menu(self, event_button, event_time, data=None):
@@ -173,11 +185,10 @@ class SystrayIconApp:
      
     def on_right_click(self, data, event_button, event_time):
       self.make_menu(event_button, event_time)
-      #self.icon.set_from_stock(gtk.STOCK_NO)
      
     def on_left_click(self, event):
-      self.message("Status Icon Left Clicked")
-      #self.icon.set_from_stock(gtk.STOCK_YES)
+      #self.message("Status Icon Left Clicked")
+      self.show_app()
      
 
     def  show_about_dialog(self, data=None):
@@ -191,8 +202,6 @@ class SystrayIconApp:
         about_dialog.set_authors(['Jorge Nerín <jnerin@gmail.com>'])
         about_dialog.run()
         about_dialog.destroy()
-
-
 
 
 class TextView:
