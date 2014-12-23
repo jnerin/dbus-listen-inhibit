@@ -3,8 +3,22 @@
 #
 # Tool to check for dbus messages inhibiting sleep in power management. 
 # It does so by listening for messages in the session dbus 
-# inhibiting/uninhibiting power management, and the HasInhibitChanged message.
+# inhibiting/uninhibiting power management, and the HasInhibitChanged
+# message.
 # 
+# Changelog:
+#
+# 0.3
+# Added the menu option to toggle the desktop notifications (helps a lot when
+# using google hangouts to chat)
+#
+# 0.2
+# Added the "gui", a systray icon with a right click menu that shows the active
+# inhibits
+#
+# 0.1
+# Console application only, first release.
+#
 # Copyright 2014 Jorge Nerín (jnerin@gmail.com)
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -18,7 +32,6 @@
 #
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 
 import glib
 import dbus
@@ -36,7 +49,8 @@ import pynotify
 
 
 PROGRAM = "dbus-listen-inhibit"
-VERSION = "0.2"
+VERSION = "0.3"
+show_notifications = True;
 
 inhibits_list = {}
 
@@ -125,11 +139,13 @@ def notifications(bus, message):
 
 
 def desktop_notify(title, text):
-    n = pynotify.Notification (title, text)
-    n.show ()
+    if show_notifications:
+        n = pynotify.Notification (title, text)
+        n.show ()
 
 
 class SystrayIconApp:
+
     def __init__(self):
         self.icon = gtk.status_icon_new_from_stock(gtk.STOCK_ABOUT)
         # gtk.STOCK_YES gtk.STOCK_NO  
@@ -156,27 +172,39 @@ class SystrayIconApp:
     def show_app(self, data=None):
       #self.message(data)
       TextView()
-     
+
+    def show_notifications_menu(self, data=None):
+      global show_notifications
+      #self.message(data)
+      show_notifications=not show_notifications;
+
     def close_app(self, data=None):
       #self.message(data)
       gtk.main_quit()
      
     def make_menu(self, event_button, event_time, data=None):
+      global show_notifications
+
       menu = gtk.Menu()
       show_item = gtk.MenuItem("Show status")
-      close_item = gtk.MenuItem("Close App")
+      show_notifications_item = gtk.CheckMenuItem("Show notifications")
+      show_notifications_item.set_active(show_notifications)
+      close_item = gtk.MenuItem("Exit")
       about_item = gtk.MenuItem("About")
       
       #Append the menu items  
       menu.append(show_item)
+      menu.append(show_notifications_item)
       menu.append(close_item)
       menu.append(about_item)
       #add callbacks
       show_item.connect_object("activate", self.show_app, "Show status")
+      show_notifications_item.connect_object("activate", self.show_notifications_menu, "Show notifications")
       close_item.connect_object("activate", self.close_app, "Close App")
       about_item.connect_object("activate", self.show_about_dialog, "About")
       #Show the menu items
       show_item.show()
+      show_notifications_item.show()
       close_item.show()
       about_item.show()
       
