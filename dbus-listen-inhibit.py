@@ -33,6 +33,19 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# HOWTO remove stale Inhibit leftover from crashed programs:
+
+# $ qdbus org.freedesktop.PowerManagement /org/freedesktop/PowerManagement org.freedesktop.PowerManagement.Inhibit.Inhibit "$$" "Testing D-Bus Interface"
+# 404
+# $ qdbus org.freedesktop.PowerManagement /org/freedesktop/PowerManagement/Inhibit org.freedesktop.PowerManagement.Inhibit.UnInhibit 404
+#
+# $ for i in {1..403} ; do echo -n "$i " ; qdbus org.freedesktop.PowerManagement /org/freedesktop/PowerManagement/Inhibit org.freedesktop.PowerManagement.Inhibit.UnInhibit $i ; done
+# 1 
+# 2 
+# 3 
+# [...]
+
+
 import glib
 import dbus
 import dbus.service

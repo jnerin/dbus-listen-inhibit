@@ -80,5 +80,27 @@ You can use the right click button over the green|red light to see the about win
 You want a way to see the raw messages?
 - `dbus-monitor --session interface=org.freedesktop.PowerManagement.Inhibit`.
 
+You want to remove stale Inhibits leftover from crashed of bad behaved apps? Then there's also an ugly way to solve it:
 
+```
+$ qdbus org.freedesktop.PowerManagement /org/freedesktop/PowerManagement org.freedesktop.PowerManagement.Inhibit.Inhibit "$$" "Testing D-Bus Interface"
+404
+```
 
+That "404" is the value of the cookie to be used as an argument to UnInhibit to lift the Inhibit.
+
+```
+$ qdbus org.freedesktop.PowerManagement /org/freedesktop/PowerManagement/Inhibit org.freedesktop.PowerManagement.Inhibit.UnInhibit 404
+```
+
+So, the extremely ugly hack, is to call UnInhibit with what seems to be the cookie values produced before the previous test:
+
+```
+$ for i in {1..403} ; do echo -n "$i " ; qdbus org.freedesktop.PowerManagement /org/freedesktop/PowerManagement/Inhibit org.freedesktop.PowerManagement.Inhibit.UnInhibit $i ; done
+1 
+2 
+3 
+[...]
+```
+
+Inhibit should be gone now.
