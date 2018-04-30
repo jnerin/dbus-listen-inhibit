@@ -75,7 +75,7 @@ You can use the right click button over the green|red light to see the about win
 
 ![menu](menu.png)
 
-![inhibit dump](inhibit dump.png)
+![inhibit dump](inhibit%20dump.png)
 
 You want a way to see the raw messages?
 - `dbus-monitor --session interface=org.freedesktop.PowerManagement.Inhibit`.
